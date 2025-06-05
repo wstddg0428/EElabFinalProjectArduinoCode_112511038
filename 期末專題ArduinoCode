@@ -297,6 +297,6 @@ if (display_mode){ // 進入distance mode,display_mode == 1
       DisplaySevenSeg(0, 10);//顯示space
     }
   }
-}
+ }
 }
 
