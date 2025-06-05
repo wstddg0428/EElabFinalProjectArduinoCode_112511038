@@ -1,0 +1,302 @@
+#define button_pin 1
+#define echo_pin 2
+#define trig_pin 3
+#define right_pin 4
+#define left_pin 5
+const int seven_segment_pin[8] = {13, 12, 11, 10, 9, 8, 7, 6};
+
+
+
+
+bool display_mode = 0;//0代表顯示溫度，1代表顯示距離
+double digital_signal, temperature;
+long duration;
+int distance;
+int frame_display_time = 100;
+
+
+
+
+void setup(){
+for (int i = 0; i < 8; i++){
+  pinMode(seven_segment_pin[i], OUTPUT);
+}
+pinMode(button_pin, INPUT);
+pinMode(left_pin, OUTPUT);
+pinMode(right_pin, OUTPUT);
+pinMode(trig_pin, OUTPUT);
+pinMode(echo_pin, INPUT);
+}
+
+
+
+
+void WriteSevenSeg(byte A, byte B, byte C, byte D, byte E, byte F, byte G, byte DP){
+digitalWrite(seven_segment_pin[0], A);
+digitalWrite(seven_segment_pin[1], B);
+digitalWrite(seven_segment_pin[2], C);
+digitalWrite(seven_segment_pin[3], D);
+digitalWrite(seven_segment_pin[4], E);
+digitalWrite(seven_segment_pin[5], F);
+digitalWrite(seven_segment_pin[6], G);
+digitalWrite(seven_segment_pin[7], DP);
+}
+
+
+
+
+void SetNumber(int pattern){
+switch (pattern){
+case 0:
+  WriteSevenSeg(0, 0, 0, 0, 0, 0, 1, 1);
+  break;
+case 1:
+  WriteSevenSeg(1, 0, 0, 1, 1, 1, 1, 1);
+  break;
+case 2:
+  WriteSevenSeg(0, 0, 1, 0, 0, 1, 0, 1);
+  break;
+case 3:
+  WriteSevenSeg(0, 0, 0, 0, 1, 1, 0, 1);
+  break;
+case 4:
+  WriteSevenSeg(1, 0, 0, 1, 1, 0, 0, 1);
+  break;
+case 5:
+  WriteSevenSeg(0, 1, 0, 0, 1, 0, 0, 1);
+  break;
+case 6:
+  WriteSevenSeg(0, 1, 0, 0, 0, 0, 0, 1);
+  break;
+case 7:
+  WriteSevenSeg(0, 0, 0, 1, 1, 1, 1, 1);
+  break;
+case 8:
+  WriteSevenSeg(0, 0, 0, 0, 0, 0, 0, 1);
+  break;
+case 9:
+  WriteSevenSeg(0, 0, 0, 0, 1, 0, 0, 1);
+  break;
+case 10: // reset/space
+  WriteSevenSeg(1, 1, 1, 1, 1, 1, 1, 1);
+  break;
+case (int)'d': // dot,小數點, 把char轉成ASCII code
+  WriteSevenSeg(1, 1, 1, 1, 1, 1, 1, 0);
+  break;
+case (int)'o': // 度
+  WriteSevenSeg(0, 0, 1, 1, 1, 0, 0, 1);
+  break;
+case (int)'C': // C
+  WriteSevenSeg(0, 1, 1, 0, 0, 0, 1, 1);
+  break;
+case (int)'m': // m
+  WriteSevenSeg(1, 1, 0, 1, 0, 1, 0, 1);
+  break;
+  }
+}
+
+
+
+
+void IlluminateSevenSeg(bool left_or_right, int num){//1代表left，0代表right
+if (left_or_right){//顯示左邊
+  digitalWrite(left_pin, LOW);//left_pin LOW代表左邊亮
+  digitalWrite(right_pin, HIGH);
+  SetNumber(num);
+  delay(10);//左右交替閃爍，間隔10ms
+}
+else{//顯示右邊
+  digitalWrite(left_pin, HIGH);
+  digitalWrite(right_pin, LOW);
+  SetNumber(num);
+  delay(10);
+}
+}
+
+
+
+
+bool IsButtonPressed(int butpin){
+int result = digitalRead(butpin);
+if (result == 0){//按下button後瞬間變成邏輯0(按鈕接的是pull-up resistor)
+  return 1;
+}
+else
+  return 0;
+}
+
+
+
+
+void loop(){
+if (!display_mode){ // temperature mode
+  digital_signal = analogRead(A0);
+  temperature = digital_signal * (5 / 1024.0) / 0.01;//除以1024，乘以5,得到原本的輸出電壓,    最後除以10mV
+  for (int i = 0; i < frame_display_time && !display_mode; i++){//不斷偵測是否按過按鈕，且只有display_mode == 0 才能進入for
+    if (IsButtonPressed(button_pin)){// 偵測是否按按鈕
+      display_mode = 1;//切換顯示模式
+      SetNumber(10);//設定為顯示全黑
+      delay(500);//button debounce, 避免重複判讀
+      break;//直接離開for迴圈
+    }
+    else{
+      DisplaySevenSeg(1, 10);//左邊顯示空白
+      DisplaySevenSeg(0, temperature / 10);//右邊顯示十位數
+    }
+  }
+  for (int i = 0; i < frame_display_time && !display_mode; i++){
+    if (IsButtonPressed(button_pin)){
+      display_mode = 1;
+      SetNumber(10);
+      delay(500);
+      break;
+    }
+    else{
+      DisplaySevenSeg(1, temperature / 10);//左邊顯示十位數
+      DisplaySevenSeg(0, ((int)temperature) % 10);//將temperature轉成int，找出個位數，右邊顯示個位數
+    }
+  }
+  for (int i = 0; i < frame_display_time && !display_mode; i++){
+    if (IsButtonPressed(button_pin)){
+      display_mode = 1;
+      SetNumber(10);
+      delay(500);
+      break;
+    }
+    else{
+      DisplaySevenSeg(1, ((int)temperature) % 10);//左邊顯示個位數
+      DisplaySevenSeg(0, (int)'d');//右邊顯示小數點
+    }
+  }
+  for (int i = 0; i < frame_display_time && !display_mode; i++){
+    if (IsButtonPressed(button_pin)){
+      display_mode = 1;
+      SetNumber(10);
+      delay(500);
+      break;
+    }
+    else{
+      DisplaySevenSeg(1, (int)'d');
+      DisplaySevenSeg(0,((int)(temperature * 10 )) % 10 );//右邊顯示小數點後一位數
+    }
+  }
+  for (int i = 0; i < frame_display_time && !display_mode; i++){
+    if (IsButtonPressed(button_pin)){
+      display_mode = 1;
+      SetNumber(10);
+      delay(500);
+      break;
+    }
+    else{
+      DisplaySevenSeg(1, ((int)(temperature * 10)) % 10);//左邊顯示小數點後一位數
+      DisplaySevenSeg(0, (int)'o');//右邊顯示度
+    }
+  }
+  for (int i = 0; i < frame_display_time && !display_mode; i++){
+    if (IsButtonPressed(button_pin)){
+      display_mode = 1;
+      SetNumber(10);
+      delay(500);
+      break;
+    }
+    else{
+      DisplaySevenSeg(1, (int)'o');
+      DisplaySevenSeg(0, (int)'C');
+    }
+  }
+  for (int i = 0; i < frame_display_time && !display_mode; i++){
+    if (IsButtonPressed(button_pin)){
+      display_mode = 1;
+      SetNumber(10);
+      delay(500);
+      break;
+    }
+    else{
+      DisplaySevenSeg(1, (int)'C');
+      DisplaySevenSeg(0, 10);//右邊顯示空白
+    }
+  }
+}
+if (display_mode){ // 進入distance mode,display_mode == 1
+  digitalWrite(trig_pin, LOW); // 製造一個pulse input
+  delayMicroseconds(5);
+  digitalWrite(trig_pin, HIGH);
+  delayMicroseconds(15);
+  digitalWrite(trig_pin, LOW);
+  duration = pulseIn(echo_pin, HIGH);//duration得到的單位是microsec
+  distance = duration * 0.034 / 2;//10^-6(microsec/sec)*340*100(m/cm) /2
+  for (int i = 0; i < frame_display_time && display_mode; i++){
+    if (IsButtonPressed(button_pin)){
+      display_mode = 0;
+      SetNumber(10);
+      delay(500);
+      break;
+    }
+    else{
+      DisplaySevenSeg(1, 10);
+      DisplaySevenSeg(0, distance / 100);//顯示百位數,小數點會無條件捨去
+    }
+  }
+  for (int i = 0; i < frame_display_time && display_mode; i++){
+    if (IsButtonPressed(button_pin)){
+      display_mode = 0;
+      SetNumber(10);
+      delay(500);
+      break;
+    }
+    else{
+      DisplaySevenSeg(1, distance / 100);//顯示百位數
+      DisplaySevenSeg(0, (distance / 10) % 10);//顯示十位數
+    }
+  }
+  for (int i = 0; i < frame_display_time && display_mode; i++){
+    if (IsButtonPressed(button_pin)){
+      display_mode = 0;
+      SetNumber(10);
+      delay(500);
+      break;
+    }
+    else{
+      DisplaySevenSeg(1, (distance / 10) % 10);//顯示十位數
+      DisplaySevenSeg(0, distance % 10);//顯示個位數
+    }
+  }
+  for (int i = 0; i < frame_display_time && display_mode; i++){
+    if (IsButtonPressed(button_pin)){
+      display_mode = 0;
+      SetNumber(10);
+      delay(500);
+      break;
+    }
+    else{
+      DisplaySevenSeg(1, distance % 10);//顯示個位數
+      DisplaySevenSeg(0, (int)'C');//顯示C
+    }
+  }
+  for (int i = 0; i < frame_display_time && display_mode; i++){
+    if (IsButtonPressed(button_pin)){
+      display_mode = 0;
+      SetNumber(10);
+      delay(500);
+      break;
+    }
+    else{
+      DisplaySevenSeg(1, (int)'C');//顯示C
+      DisplaySevenSeg(0, (int)'m');//顯示m
+    }
+  }
+  for (int i = 0; i < frame_display_time && display_mode; i++){
+    if (IsButtonPressed(button_pin)){
+      display_mode = 0;
+      SetNumber(10);
+      delay(500);
+      break;
+    }
+    else{
+      DisplaySevenSeg(1, (int)'m');
+      DisplaySevenSeg(0, 10);//顯示space
+    }
+  }
+}
+}
+
